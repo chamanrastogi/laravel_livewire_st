@@ -1,0 +1,153 @@
+<?php
+
+namespace App\Livewire\Admin\Tags;
+
+use App\Models\Tag;
+use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Title;
+use Livewire\Component;
+use Livewire\WithPagination;
+
+#[Layout('layouts.app')]
+#[Title('Tags')]
+class Index extends Component
+{
+    use WithPagination;
+
+    public string $search = '';
+
+    public string $sortField = 'name';
+
+    public string $sortDirection = 'asc';
+
+    public int $perPage = 15;
+
+    protected array $perPageOptions = [15, 25, 50, 100];
+
+    public ?int $editingId = null;
+
+    public string $name = '';
+
+    public string $slug = '';
+
+    public bool $showModal = false;
+
+    protected function rules(): array
+    {
+        $id = $this->editingId;
+
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'max:255', 'unique:tags,slug,'.($id ?? 'NULL')],
+        ];
+    }
+
+    public function mount(): void
+    {
+        abort_unless(auth()->user()?->can('read tags'), 403);
+    }
+
+    public function updatedName($value): void
+    {
+        if (! $this->editingId) {
+            $this->slug = Str::slug($value);
+        }
+    }
+
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingPerPage(): void
+    {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+    }
+
+    public function create(): void
+    {
+        abort_unless(auth()->user()?->can('create tags'), 403);
+        $this->resetForm();
+        $this->showModal = true;
+    }
+
+    public function edit(int $id): void
+    {
+        abort_unless(auth()->user()?->can('update tags'), 403);
+        $tag = Tag::findOrFail($id);
+        $this->editingId = $tag->id;
+        $this->name = $tag->name;
+        $this->slug = $tag->slug;
+        $this->showModal = true;
+    }
+
+    public function save(): void
+    {
+        abort_unless(
+            auth()->user()?->can($this->editingId ? 'update tags' : 'create tags'),
+            403,
+        );
+        $this->validate();
+        if ($this->editingId) {
+            Tag::findOrFail($this->editingId)->update([
+                'name' => $this->name,
+                'slug' => $this->slug,
+            ]);
+            session()->flash('status', __('Tag updated successfully.'));
+        } else {
+            Tag::create([
+                'name' => $this->name,
+                'slug' => $this->slug,
+            ]);
+            session()->flash('status', __('Tag created successfully.'));
+        }
+        Cache::forget('admin.tags.list');
+        $this->showModal = false;
+        $this->resetForm();
+    }
+
+    public function delete(int $id): void
+    {
+        abort_unless(auth()->user()?->can('delete tags'), 403);
+        Tag::findOrFail($id)->delete();
+        Cache::forget('admin.tags.list');
+        session()->flash('status', __('Tag deleted successfully.'));
+    }
+
+    public function resetForm(): void
+    {
+        $this->editingId = null;
+        $this->name = $this->slug = '';
+    }
+
+    public function render(): View
+    {
+        $tags = Tag::query()
+            ->select(['id', 'name', 'slug', 'created_at'])
+            ->when($this->search, function (Builder $q): void {
+                $q->where('name', 'like', '%'.$this->search.'%')
+                    ->orWhere('slug', 'like', '%'.$this->search.'%');
+            })
+            ->orderBy($this->sortField, $this->sortDirection)
+            ->paginate($this->perPage);
+
+        return view('livewire.admin.tags.index', [
+            'tags' => $tags,
+            'perPageOptions' => $this->perPageOptions,
+        ]);
+    }
+}
