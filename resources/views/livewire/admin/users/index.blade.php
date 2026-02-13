@@ -40,6 +40,12 @@
                         </th>
                         <th scope="col"
                             class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
+                            <button type="button" wire:click="sortBy('role')" class="inline-flex items-center gap-1">
+                                {{ __('Role') }}
+                            </button>
+                        </th>
+                        <th scope="col"
+                            class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
                             <button type="button" wire:click="sortBy('email')" class="inline-flex items-center gap-1">
                                 {{ __('Email') }}
                             </button>
@@ -62,6 +68,11 @@
                                         </span>
                                     </div>
                                 </div>
+                            </td>
+                            <td class="px-4 py-2 align-middle">
+                                <span class="text-neutral-700 dark:text-neutral-200">
+                                    {{ $user->roles->pluck('name')->join(', ') ?: __('No role') }}
+                                </span>
                             </td>
                             <td class="px-4 py-2 align-middle">
                                 <span class="text-neutral-700 dark:text-neutral-200">
@@ -88,7 +99,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="3" class="px-4 py-6 text-center text-neutral-500 dark:text-neutral-400">
+                            <td colspan="4" class="px-4 py-6 text-center text-neutral-500 dark:text-neutral-400">
                                 {{ __('No users found.') }}
                             </td>
                         </tr>

@@ -162,15 +162,33 @@ class Index extends Component
 
     public function render(): View
     {
+        $sortField = in_array($this->sortField, ['name', 'email', 'role'], true) ? $this->sortField : 'name';
+        $sortDirection = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
         $users = User::query()
             ->select(['id', 'name', 'email', 'created_at'])
+            ->with('roles:id,name')
             ->when($this->search, function (Builder $query): void {
                 $query->where(function (Builder $inner): void {
                     $inner->where('name', 'like', '%'.$this->search.'%')
                         ->orWhere('email', 'like', '%'.$this->search.'%');
                 });
             })
-            ->orderBy($this->sortField, $this->sortDirection)
+            ->when(
+                $sortField === 'role',
+                function (Builder $query) use ($sortDirection): void {
+                    $query->orderByRaw(
+                        '(select min(roles.name) from roles
+                        inner join model_has_roles on roles.id = model_has_roles.role_id
+                        where model_has_roles.model_type = ?
+                        and model_has_roles.model_id = users.id) '.$sortDirection,
+                        [User::class]
+                    );
+                },
+                function (Builder $query) use ($sortField, $sortDirection): void {
+                    $query->orderBy($sortField, $sortDirection);
+                }
+            )
             ->paginate($this->perPage);
 
         $roles = Cache::remember('admin.roles.list', now()->addHour(), fn () => Role::orderBy('name')->get());
@@ -182,4 +200,3 @@ class Index extends Component
         ]);
     }
 }
-
