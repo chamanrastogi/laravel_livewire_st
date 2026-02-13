@@ -24,6 +24,8 @@ class Index extends Component
 
     public array $permissionIds = [];
 
+    public string $color = '#6B7280';
+
     public int $perPage = 15;
 
     protected array $perPageOptions = [15, 25, 50, 100];
@@ -38,6 +40,7 @@ class Index extends Component
 
         return [
             'name' => ['required', 'string', 'max:255', 'unique:roles,name,'.($id ?? 'NULL')],
+            'color' => ['required', 'regex:/^#[A-Fa-f0-9]{6}$/'],
             'permissionIds' => ['array'],
             'permissionIds.*' => ['integer', 'exists:permissions,id'],
         ];
@@ -74,6 +77,7 @@ class Index extends Component
 
         $this->editingId = $role->id;
         $this->name = $role->name;
+        $this->color = $role->color ?: '#6B7280';
         $this->permissionIds = $role->permissions()->pluck('id')->all();
         $this->showModal = true;
     }
@@ -90,11 +94,13 @@ class Index extends Component
         if ($this->editingId) {
             $role = Role::findOrFail($this->editingId);
             $role->name = $validated['name'];
+            $role->color = $validated['color'];
             $role->save();
         } else {
             $role = Role::create([
                 'name' => $validated['name'],
                 'guard_name' => 'web',
+                'color' => $validated['color'],
             ]);
         }
 
@@ -129,6 +135,7 @@ class Index extends Component
     {
         $this->editingId = null;
         $this->name = '';
+        $this->color = '#6B7280';
         $this->permissionIds = [];
     }
 

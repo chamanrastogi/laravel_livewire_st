@@ -10,6 +10,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 use Spatie\Permission\Models\Role;
 
 #[Layout('layouts.app')]
@@ -17,6 +18,7 @@ use Spatie\Permission\Models\Role;
 class Index extends Component
 {
     use WithPagination;
+    use WithoutUrlPagination;
 
     public string $search = '';
 
@@ -39,6 +41,12 @@ class Index extends Component
     public array $roleIds = [];
 
     public bool $showModal = false;
+
+    public ?int $confirmingDeleteId = null;
+
+    public ?string $confirmingDeleteName = null;
+
+    public bool $showDeleteModal = false;
 
     protected function rules(): array
     {
@@ -136,6 +144,11 @@ class Index extends Component
 
     public function delete(int $id): void
     {
+        $this->confirmDelete($id);
+    }
+
+    public function confirmDelete(int $id): void
+    {
         abort_unless(auth()->user()?->can('delete users'), 403);
 
         $user = User::findOrFail($id);
@@ -146,9 +159,69 @@ class Index extends Component
             return;
         }
 
+        if ($this->isUserProtectedFromDelete($user)) {
+            session()->flash('status', 'You cannot delete a Super Admin user.');
+
+            return;
+        }
+
+        $this->confirmingDeleteId = $user->id;
+        $this->confirmingDeleteName = $user->name;
+        $this->showDeleteModal = true;
+    }
+
+    public function deleteConfirmed(): void
+    {
+        abort_unless(auth()->user()?->can('delete users'), 403);
+
+        if (! $this->confirmingDeleteId) {
+            return;
+        }
+
+        $user = User::with('roles:id,name')->findOrFail($this->confirmingDeleteId);
+
+        if ($user->getKey() === auth()->id()) {
+            session()->flash('status', 'You cannot delete your own account.');
+            $this->closeDeleteModal();
+
+            return;
+        }
+
+        if ($this->isUserProtectedFromDelete($user)) {
+            session()->flash('status', 'You cannot delete a Super Admin user.');
+            $this->closeDeleteModal();
+
+            return;
+        }
+
         $user->delete();
 
         session()->flash('status', 'User deleted successfully.');
+
+        $this->closeDeleteModal();
+    }
+
+    public function closeDeleteModal(): void
+    {
+        $this->showDeleteModal = false;
+        $this->confirmingDeleteId = null;
+        $this->confirmingDeleteName = null;
+    }
+
+    public function toggleStatus(int $id): void
+    {
+        abort_unless(auth()->user()?->can('update users'), 403);
+
+        $user = User::findOrFail($id);
+        $user->is_active = ! $user->is_active;
+        $user->save();
+
+        session()->flash('status', 'User status updated successfully.');
+    }
+
+    protected function isUserProtectedFromDelete(User $user): bool
+    {
+        return $user->roles->contains('name', 'Super Admin');
     }
 
     public function resetForm(): void
@@ -166,8 +239,8 @@ class Index extends Component
         $sortDirection = $this->sortDirection === 'desc' ? 'desc' : 'asc';
 
         $users = User::query()
-            ->select(['id', 'name', 'email', 'created_at'])
-            ->with('roles:id,name')
+            ->select(['id', 'name', 'email', 'is_active', 'created_at'])
+            ->with('roles:id,name,color')
             ->when($this->search, function (Builder $query): void {
                 $query->where(function (Builder $inner): void {
                     $inner->where('name', 'like', '%'.$this->search.'%')

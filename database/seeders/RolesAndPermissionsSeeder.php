@@ -33,10 +33,31 @@ class RolesAndPermissionsSeeder extends Seeder
                 });
             });
 
-        $superAdmin = Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web']);
-        $admin = Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'web']);
-        $editor = Role::firstOrCreate(['name' => 'Editor', 'guard_name' => 'web']);
-        $viewer = Role::firstOrCreate(['name' => 'Viewer', 'guard_name' => 'web']);
+        $superAdmin = Role::firstOrCreate(
+            ['name' => 'Super Admin', 'guard_name' => 'web'],
+            ['color' => '#DC2626'],
+        );
+        $admin = Role::firstOrCreate(
+            ['name' => 'Admin', 'guard_name' => 'web'],
+            ['color' => '#2563EB'],
+        );
+        $editor = Role::firstOrCreate(
+            ['name' => 'Editor', 'guard_name' => 'web'],
+            ['color' => '#D97706'],
+        );
+        $viewer = Role::firstOrCreate(
+            ['name' => 'Viewer', 'guard_name' => 'web'],
+            ['color' => '#6B7280'],
+        );
+
+        $superAdmin->color = $superAdmin->color ?: '#DC2626';
+        $superAdmin->save();
+        $admin->color = $admin->color ?: '#2563EB';
+        $admin->save();
+        $editor->color = $editor->color ?: '#D97706';
+        $editor->save();
+        $viewer->color = $viewer->color ?: '#6B7280';
+        $viewer->save();
 
         $superAdmin->syncPermissions($permissions);
 
@@ -62,4 +83,3 @@ class RolesAndPermissionsSeeder extends Seeder
         );
     }
 }
-
