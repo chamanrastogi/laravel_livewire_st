@@ -70,7 +70,12 @@
                 <tr wire:key="user-{{ $user->id }}">
                     <td class="px-4 py-2 align-middle">
                         <div class="flex items-center gap-2">
-                            <flux:avatar :name="$user->name" :initials="$user->initials()" />
+                            @if ($user->avatar_path)
+                                <img src="{{ Storage::disk('public')->url($user->avatar_path) }}" alt="{{ $user->name }}"
+                                    class="size-9 rounded-full object-cover" />
+                            @else
+                                <flux:avatar :name="$user->name" :initials="$user->initials()" />
+                            @endif
                             <div class="flex flex-col">
                                 <span class="font-medium text-neutral-900 dark:text-neutral-50">
                                     {{ $user->name }}
@@ -199,6 +204,22 @@
                     __('Password (leave blank to keep current)') :
                     __('Password')" />
             <flux:error for="password" />
+
+            {{-- Avatar --}}
+            <flux:input id="avatarImage" type="file" wire:model="avatarImage" :label="__('Avatar')" />
+            <flux:error for="avatarImage" />
+
+            @if ($avatarImage)
+                <img src="{{ $avatarImage->temporaryUrl() }}" alt="{{ __('Avatar preview') }}"
+                    class="size-16 rounded-full object-cover" />
+            @elseif ($currentAvatarPath)
+                <img src="{{ Storage::disk('public')->url($currentAvatarPath) }}" alt="{{ __('Current avatar') }}"
+                    class="size-16 rounded-full object-cover" />
+            @endif
+
+            @if ($editingId && $currentAvatarPath)
+                <flux:checkbox wire:model.live="removeAvatar" :label="__('Delete current avatar')" />
+            @endif
 
             {{-- Roles --}}
             <flux:field>

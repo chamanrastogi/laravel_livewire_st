@@ -11,11 +11,13 @@
             </flux:sidebar.header>
 
             <flux:sidebar.nav>
-                <flux:sidebar.group :heading="__('Platform')" class="grid">
+                <flux:sidebar.group :heading="__('Core')" class="grid">
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
+                </flux:sidebar.group>
 
+                <flux:sidebar.group :heading="__('Access')" class="grid">
                     @can('read users')
                         <flux:sidebar.item
                             icon="users"
@@ -48,7 +50,9 @@
                             {{ __('Permissions') }}
                         </flux:sidebar.item>
                     @endcan
+                </flux:sidebar.group>
 
+                <flux:sidebar.group :heading="__('Content')" class="grid">
                     @can('read pages')
                         <flux:sidebar.item
                             icon="document-text"
@@ -103,7 +107,43 @@
                             {{ __('Media') }}
                         </flux:sidebar.item>
                     @endcan
+                </flux:sidebar.group>
 
+                <flux:sidebar.group :heading="__('Navigation')" class="grid">
+                    @can('read menus')
+                        <flux:sidebar.item
+                            icon="bars-3-bottom-left"
+                            :href="route('admin.menus.index')"
+                            :current="request()->routeIs('admin.menus.*')"
+                            wire:navigate
+                        >
+                            {{ __('Menus') }}
+                        </flux:sidebar.item>
+                    @endcan
+
+                    @can('read menu groups')
+                        <flux:sidebar.item
+                            icon="queue-list"
+                            :href="route('admin.menu-groups.index')"
+                            :current="request()->routeIs('admin.menu-groups.*')"
+                            wire:navigate
+                        >
+                            {{ __('Menu Groups') }}
+                        </flux:sidebar.item>
+                    @endcan
+                </flux:sidebar.group>
+
+                <flux:sidebar.group :heading="__('System')" class="grid">
+                    @can('read modules')
+                        <flux:sidebar.item
+                            icon="squares-plus"
+                            :href="route('admin.modules.index')"
+                            :current="request()->routeIs('admin.modules.*')"
+                            wire:navigate
+                        >
+                            {{ __('Modules') }}
+                        </flux:sidebar.item>
+                    @endcan
                     @can('read settings')
                         <flux:sidebar.item
                             icon="cog"

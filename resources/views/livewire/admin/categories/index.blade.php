@@ -3,7 +3,7 @@
         <flux:callout variant="success">{{ session('status') }}</flux:callout>
     @endif
 
-    <x-data-table columns="4" loading-target="search,sortBy,perPage,nextPage,previousPage,gotoPage,setPage"
+    <x-data-table columns="5" loading-target="search,sortBy,perPage,nextPage,previousPage,gotoPage,setPage"
         :empty="__('No categories found.')">
         <x-slot:toolbar>
             <div class="flex flex-1 min-w-[200px] items-center gap-3">
@@ -34,6 +34,9 @@
                     </button>
                 </th>
                 <th class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
+                    {{ __('Image') }}
+                </th>
+                <th class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
                     {{ __('Slug') }}
                 </th>
                 <th class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
@@ -50,6 +53,14 @@
                 <tr wire:key="cat-{{ $category->id }}">
                     <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">
                         {{ $category->name }}
+                    </td>
+                    <td class="px-4 py-2">
+                        @if ($category->image_path)
+                            <img src="{{ Storage::disk('public')->url($category->image_path) }}" alt="{{ $category->name }}"
+                                class="h-10 w-16 rounded object-cover" />
+                        @else
+                            <span class="text-neutral-400">-</span>
+                        @endif
                     </td>
                     <td class="px-4 py-2 text-neutral-600 dark:text-neutral-400">
                         {{ $category->slug }}
@@ -92,7 +103,7 @@
                 </flux:heading>
 
                 <flux:subheading>
-                    {{ __('Organize posts with categories.ss') }}
+                    {{ __('Organize posts with categories.') }}
                 </flux:subheading>
             </div>
 
@@ -103,6 +114,21 @@
             <flux:error for="slug" />
 
             <flux:textarea wire:model.live="description" :label="__('Description')" rows="3" />
+
+            <flux:input type="file" wire:model="image" :label="__('Image')" />
+            <flux:error for="image" />
+
+            @if ($image)
+                <img src="{{ $image->temporaryUrl() }}" alt="{{ __('Category image preview') }}"
+                    class="h-24 w-40 rounded object-cover" />
+            @elseif ($currentImagePath)
+                <img src="{{ Storage::disk('public')->url($currentImagePath) }}" alt="{{ __('Current category image') }}"
+                    class="h-24 w-40 rounded object-cover" />
+            @endif
+
+            @if ($editingId && $currentImagePath)
+                <flux:checkbox wire:model.live="removeImage" :label="__('Delete current image')" />
+            @endif
 
             <div class="flex justify-end space-x-2 rtl:space-x-reverse">
                 <flux:modal.close>

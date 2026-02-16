@@ -6,9 +6,11 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Livewire\WithoutUrlPagination;
 use Spatie\Permission\Models\Role;
@@ -17,6 +19,7 @@ use Spatie\Permission\Models\Role;
 #[Title('Users')]
 class Index extends Component
 {
+    use WithFileUploads;
     use WithPagination;
     use WithoutUrlPagination;
 
@@ -38,6 +41,12 @@ class Index extends Component
 
     public ?string $password = null;
 
+    public $avatarImage = null;
+
+    public bool $removeAvatar = false;
+
+    public ?string $currentAvatarPath = null;
+
     public array $roleIds = [];
 
     public bool $showModal = false;
@@ -56,6 +65,7 @@ class Index extends Component
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.($id ?? 'NULL')],
             'password' => [$id ? 'nullable' : 'required', 'string', 'min:8'],
+            'avatarImage' => ['nullable', 'image', 'max:2048'],
         ];
     }
 
@@ -102,6 +112,9 @@ class Index extends Component
         $this->name = $user->name;
         $this->email = $user->email;
         $this->password = null;
+        $this->avatarImage = null;
+        $this->removeAvatar = false;
+        $this->currentAvatarPath = $user->avatar_path;
         $this->roleIds = $user->roles()->pluck('id')->all();
         $this->showModal = true;
     }
@@ -117,9 +130,24 @@ class Index extends Component
 
         if ($this->editingId) {
             $user = User::findOrFail($this->editingId);
+            $avatarPath = $user->avatar_path;
+
+            if ($this->removeAvatar && $avatarPath) {
+                Storage::disk('public')->delete($avatarPath);
+                $avatarPath = null;
+            }
+
+            if ($this->avatarImage) {
+                if ($avatarPath) {
+                    Storage::disk('public')->delete($avatarPath);
+                }
+                $avatarPath = $this->avatarImage->store('avatars/'.date('Y/m'), 'public');
+            }
+
             $user->fill([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
+                'avatar_path' => $avatarPath,
             ]);
 
             if (! empty($validated['password'])) {
@@ -127,12 +155,22 @@ class Index extends Component
             }
 
             $user->save();
+            $this->currentAvatarPath = $avatarPath;
             $user->roles()->sync($this->roleIds ?? []);
             \Illuminate\Support\Facades\Cache::forget('admin.roles.list');
 
             session()->flash('status', 'User updated successfully.');
         } else {
-            $user = User::create($validated);
+            $avatarPath = $this->avatarImage?->store('avatars/'.date('Y/m'), 'public');
+
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => $validated['password'],
+            ]);
+            $user->avatar_path = $avatarPath;
+            $user->save();
+            $this->currentAvatarPath = $avatarPath;
             $user->roles()->sync($this->roleIds ?? []);
 
             session()->flash('status', 'User created successfully.');
@@ -194,6 +232,10 @@ class Index extends Component
             return;
         }
 
+        if ($user->avatar_path) {
+            Storage::disk('public')->delete($user->avatar_path);
+        }
+
         $user->delete();
 
         session()->flash('status', 'User deleted successfully.');
@@ -230,6 +272,9 @@ class Index extends Component
         $this->name = '';
         $this->email = '';
         $this->password = null;
+        $this->avatarImage = null;
+        $this->removeAvatar = false;
+        $this->currentAvatarPath = null;
         $this->roleIds = [];
     }
 
@@ -239,7 +284,7 @@ class Index extends Component
         $sortDirection = $this->sortDirection === 'desc' ? 'desc' : 'asc';
 
         $users = User::query()
-            ->select(['id', 'name', 'email', 'is_active', 'created_at'])
+            ->select(['id', 'name', 'email', 'avatar_path', 'is_active', 'created_at'])
             ->with('roles:id,name,color')
             ->when($this->search, function (Builder $query): void {
                 $query->where(function (Builder $inner): void {

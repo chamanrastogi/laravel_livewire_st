@@ -16,6 +16,7 @@ class Post extends Model
         'slug',
         'excerpt',
         'content',
+        'featured_image_path',
         'status',
         'published_at',
         'created_by',
@@ -39,4 +40,3 @@ class Post extends Model
         return $this->belongsToMany(Tag::class, 'post_tag');
     }
 }
-

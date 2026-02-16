@@ -8,17 +8,22 @@ use App\Models\Tag;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 #[Layout('layouts.app')]
 #[Title('Posts')]
 class Index extends Component
 {
+    use WithFileUploads;
     use WithPagination;
+    use WithoutUrlPagination;
 
     public string $search = '';
 
@@ -40,6 +45,12 @@ class Index extends Component
 
     public string $content = '';
 
+    public $featuredImage = null;
+
+    public bool $removeFeaturedImage = false;
+
+    public ?string $currentFeaturedImagePath = null;
+
     public string $status = 'draft';
 
     public ?string $publishedAt = null;
@@ -59,6 +70,7 @@ class Index extends Component
             'slug' => ['required', 'string', 'max:255', 'unique:posts,slug,'.($id ?? 'NULL')],
             'excerpt' => ['nullable', 'string', 'max:500'],
             'content' => ['nullable', 'string'],
+            'featuredImage' => ['nullable', 'image', 'max:2048'],
             'status' => ['required', 'in:draft,published'],
             'publishedAt' => ['nullable', 'date'],
             'categoryIds' => ['array'],
@@ -105,6 +117,7 @@ class Index extends Component
         abort_unless(auth()->user()?->can('create posts'), 403);
         $this->resetForm();
         $this->showModal = true;
+        $this->dispatch('quill:set-content', instance: 'post-content-editor', content: '');
     }
 
     public function edit(int $id): void
@@ -116,11 +129,15 @@ class Index extends Component
         $this->slug = $post->slug;
         $this->excerpt = $post->excerpt ?? '';
         $this->content = $post->content ?? '';
+        $this->featuredImage = null;
+        $this->removeFeaturedImage = false;
+        $this->currentFeaturedImagePath = $post->featured_image_path;
         $this->status = $post->status;
         $this->publishedAt = $post->published_at?->format('Y-m-d\TH:i');
         $this->categoryIds = $post->categories->pluck('id')->all();
         $this->tagIds = $post->tags->pluck('id')->all();
         $this->showModal = true;
+        $this->dispatch('quill:set-content', instance: 'post-content-editor', content: $this->content);
     }
 
     public function save(): void
@@ -130,11 +147,31 @@ class Index extends Component
             403,
         );
         $validated = $this->validate();
+        $featuredImagePath = null;
+
+        if ($this->editingId) {
+            $existing = Post::findOrFail($this->editingId);
+            $featuredImagePath = $existing->featured_image_path;
+
+            if ($this->removeFeaturedImage && $featuredImagePath) {
+                Storage::disk('public')->delete($featuredImagePath);
+                $featuredImagePath = null;
+            }
+        }
+
+        if ($this->featuredImage) {
+            if ($featuredImagePath) {
+                Storage::disk('public')->delete($featuredImagePath);
+            }
+            $featuredImagePath = $this->featuredImage->store('posts/'.date('Y/m'), 'public');
+        }
+
         $data = [
             'title' => $validated['title'],
             'slug' => $validated['slug'],
             'excerpt' => $validated['excerpt'] ?: null,
             'content' => $validated['content'],
+            'featured_image_path' => $featuredImagePath,
             'status' => $validated['status'],
             'published_at' => $validated['publishedAt'] ?: null,
             'updated_by' => auth()->id(),
@@ -143,13 +180,15 @@ class Index extends Component
             $data['created_by'] = auth()->id();
         }
         if ($this->editingId) {
-            $post = Post::findOrFail($this->editingId);
-            $post->update($data);
+            $existing->update($data);
+            $this->currentFeaturedImagePath = $featuredImagePath;
+            $post = $existing;
             $post->categories()->sync($validated['categoryIds'] ?? []);
             $post->tags()->sync($validated['tagIds'] ?? []);
             session()->flash('status', __('Post updated successfully.'));
         } else {
             $post = Post::create($data);
+            $this->currentFeaturedImagePath = $featuredImagePath;
             $post->categories()->sync($validated['categoryIds'] ?? []);
             $post->tags()->sync($validated['tagIds'] ?? []);
             session()->flash('status', __('Post created successfully.'));
@@ -161,7 +200,11 @@ class Index extends Component
     public function delete(int $id): void
     {
         abort_unless(auth()->user()?->can('delete posts'), 403);
-        Post::findOrFail($id)->delete();
+        $post = Post::findOrFail($id);
+        if ($post->featured_image_path) {
+            Storage::disk('public')->delete($post->featured_image_path);
+        }
+        $post->delete();
         session()->flash('status', __('Post deleted successfully.'));
     }
 
@@ -182,6 +225,9 @@ class Index extends Component
     {
         $this->editingId = null;
         $this->title = $this->slug = $this->excerpt = $this->content = '';
+        $this->featuredImage = null;
+        $this->removeFeaturedImage = false;
+        $this->currentFeaturedImagePath = null;
         $this->status = 'draft';
         $this->publishedAt = null;
         $this->categoryIds = $this->tagIds = [];
@@ -190,7 +236,7 @@ class Index extends Component
     public function render(): View
     {
         $posts = Post::query()
-            ->select(['id', 'title', 'slug', 'status', 'published_at', 'updated_at'])
+            ->select(['id', 'title', 'slug', 'featured_image_path', 'status', 'published_at', 'updated_at'])
             ->when($this->search, function (Builder $q): void {
                 $q->where(function (Builder $inner): void {
                     $inner->where('title', 'like', '%'.$this->search.'%')

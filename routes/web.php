@@ -28,10 +28,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             Route::get('/pages', \App\Livewire\Admin\Pages\Index::class)
                 ->middleware('permission:read pages')
                 ->name('pages.index');
+            Route::get('/pages/{page}/edit', \App\Livewire\Admin\Pages\Edit::class)
+                ->middleware('permission:update pages')
+                ->name('pages.edit');
 
             Route::get('/posts', \App\Livewire\Admin\Posts\Index::class)
                 ->middleware('permission:read posts')
                 ->name('posts.index');
+            Route::get('/posts/{post}/edit', \App\Livewire\Admin\Posts\Edit::class)
+                ->middleware('permission:update posts')
+                ->name('posts.edit');
 
             Route::get('/categories', \App\Livewire\Admin\Categories\Index::class)
                 ->middleware('permission:read categories')
@@ -44,6 +50,21 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             Route::get('/media', \App\Livewire\Admin\Media\Index::class)
                 ->middleware('permission:read media')
                 ->name('media.index');
+
+            Route::get('/modules', \App\Livewire\Admin\Modules\Index::class)
+                ->middleware('permission:read modules')
+                ->name('modules.index');
+            Route::get('/modules/{module}/edit', \App\Livewire\Admin\Modules\Edit::class)
+                ->middleware('permission:update modules')
+                ->name('modules.edit');
+
+            Route::get('/menu-groups', \App\Livewire\Admin\MenuGroups\Index::class)
+                ->middleware('permission:read menu groups')
+                ->name('menu-groups.index');
+
+            Route::get('/menus', \App\Livewire\Admin\Menus\Index::class)
+                ->middleware('permission:read menus')
+                ->name('menus.index');
 
             Route::get('/settings', \App\Livewire\Admin\Settings\Index::class)
                 ->middleware('permission:read settings')

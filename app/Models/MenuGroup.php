@@ -7,34 +7,31 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Page extends Model
+class MenuGroup extends Model
 {
     use HasFactory;
     use SoftDeletes;
 
+    protected $table = 'menugroups';
+
     protected $fillable = [
         'title',
         'slug',
-        'content',
-        'featured_image_path',
-        'status',
-        'published_at',
-        'meta_title',
-        'meta_description',
-        'meta_keywords',
-        'created_by',
-        'updated_by',
+        'description',
+        'sort_order',
+        'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'published_at' => 'datetime',
+            'is_active' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 
     public function menus(): HasMany
     {
-        return $this->hasMany(Menu::class);
+        return $this->hasMany(Menu::class, 'menugroup_id');
     }
 }

@@ -6,17 +6,22 @@ use App\Models\Category;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 #[Layout('layouts.app')]
 #[Title('Categories')]
 class Index extends Component
 {
+    use WithFileUploads;
     use WithPagination;
+    use WithoutUrlPagination;
 
     public string $search = '';
 
@@ -36,6 +41,12 @@ class Index extends Component
 
     public string $description = '';
 
+    public $image = null;
+
+    public bool $removeImage = false;
+
+    public ?string $currentImagePath = null;
+
     public bool $showModal = false;
 
     protected function rules(): array
@@ -46,6 +57,7 @@ class Index extends Component
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', 'unique:categories,slug,'.($id ?? 'NULL')],
             'description' => ['nullable', 'string'],
+            'image' => ['nullable', 'image', 'max:2048'],
         ];
     }
 
@@ -96,6 +108,9 @@ class Index extends Component
         $this->name = $category->name;
         $this->slug = $category->slug;
         $this->description = $category->description ?? '';
+        $this->image = null;
+        $this->removeImage = false;
+        $this->currentImagePath = $category->image_path;
         $this->showModal = true;
     }
 
@@ -105,20 +120,42 @@ class Index extends Component
             auth()->user()?->can($this->editingId ? 'update categories' : 'create categories'),
             403,
         );
-        $this->validate();
+        $validated = $this->validate();
+
         if ($this->editingId) {
-            Category::findOrFail($this->editingId)->update([
-                'name' => $this->name,
-                'slug' => $this->slug,
-                'description' => $this->description ?: null,
+            $category = Category::findOrFail($this->editingId);
+            $imagePath = $category->image_path;
+
+            if ($this->removeImage && $imagePath) {
+                Storage::disk('public')->delete($imagePath);
+                $imagePath = null;
+            }
+
+            if ($this->image) {
+                if ($imagePath) {
+                    Storage::disk('public')->delete($imagePath);
+                }
+                $imagePath = $this->image->store('categories/'.date('Y/m'), 'public');
+            }
+
+            $category->update([
+                'name' => $validated['name'],
+                'slug' => $validated['slug'],
+                'description' => $validated['description'] ?: null,
+                'image_path' => $imagePath,
             ]);
+            $this->currentImagePath = $imagePath;
             session()->flash('status', __('Category updated successfully.'));
         } else {
+            $imagePath = $this->image?->store('categories/'.date('Y/m'), 'public');
+
             Category::create([
-                'name' => $this->name,
-                'slug' => $this->slug,
-                'description' => $this->description ?: null,
+                'name' => $validated['name'],
+                'slug' => $validated['slug'],
+                'description' => $validated['description'] ?: null,
+                'image_path' => $imagePath,
             ]);
+            $this->currentImagePath = $imagePath;
             session()->flash('status', __('Category created successfully.'));
         }
         Cache::forget('admin.categories.list');
@@ -129,7 +166,11 @@ class Index extends Component
     public function delete(int $id): void
     {
         abort_unless(auth()->user()?->can('delete categories'), 403);
-        Category::findOrFail($id)->delete();
+        $category = Category::findOrFail($id);
+        if ($category->image_path) {
+            Storage::disk('public')->delete($category->image_path);
+        }
+        $category->delete();
         Cache::forget('admin.categories.list');
         session()->flash('status', __('Category deleted successfully.'));
     }
@@ -138,12 +179,15 @@ class Index extends Component
     {
         $this->editingId = null;
         $this->name = $this->slug = $this->description = '';
+        $this->image = null;
+        $this->removeImage = false;
+        $this->currentImagePath = null;
     }
 
     public function render(): View
     {
         $categories = Category::query()
-            ->select(['id', 'name', 'slug', 'description', 'created_at'])
+            ->select(['id', 'name', 'slug', 'description', 'image_path', 'created_at'])
             ->when($this->search, function (Builder $q): void {
                 $q->where('name', 'like', '%'.$this->search.'%')
                     ->orWhere('slug', 'like', '%'.$this->search.'%');

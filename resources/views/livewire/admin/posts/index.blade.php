@@ -3,7 +3,7 @@
             <flux:callout variant="success">{{ session('status') }}</flux:callout>
         @endif
 
-        <x-data-table columns="4" loading-target="search,sortBy,perPage,nextPage,previousPage,gotoPage,setPage"
+        <x-data-table columns="5" loading-target="search,sortBy,perPage,nextPage,previousPage,gotoPage,setPage"
             :empty="__('No posts found.')">
             <x-slot:toolbar>
                 <div class="flex flex-1 min-w-[200px] items-center gap-3">
@@ -29,6 +29,9 @@
                         </button>
                     </th>
                     <th scope="col" class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
+                        {{ __('Image') }}
+                    </th>
+                    <th scope="col" class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
                         {{ __('Slug') }}
                     </th>
                     <th scope="col" class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
@@ -44,6 +47,14 @@
                 @forelse ($posts as $post)
                     <tr wire:key="post-{{ $post->id }}">
                         <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">{{ $post->title }}</td>
+                        <td class="px-4 py-2">
+                            @if ($post->featured_image_path)
+                                <img src="{{ Storage::disk('public')->url($post->featured_image_path) }}"
+                                    alt="{{ $post->title }}" class="h-10 w-16 rounded object-cover" />
+                            @else
+                                <span class="text-neutral-400">-</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-2 text-neutral-600 dark:text-neutral-400">{{ $post->slug }}</td>
                         <td class="px-4 py-2">
                             <flux:badge :color="$post->status === 'published' ? 'success' : 'neutral'">
@@ -54,7 +65,7 @@
                             <div class="flex items-center gap-2">
                                 @can('update posts')
                                     <flux:button size="xs" variant="ghost" icon="pencil-square"
-                                        wire:click="edit({{ $post->id }})">{{ __('Edit') }}</flux:button>
+                                        :href="route('admin.posts.edit', $post->id)" wire:navigate>{{ __('Edit') }}</flux:button>
                                     <flux:button size="xs" variant="ghost" wire:click="togglePublish({{ $post->id }})">
                                         {{ $post->status === 'published' ? __('Unpublish') : __('Publish') }}
                                     </flux:button>
@@ -109,11 +120,29 @@
             rows="2"
         />
 
-        <flux:textarea
-            wire:model.live="content"
-            :label="__('Content')"
-            rows="6"
-        />
+        <flux:input type="file" wire:model="featuredImage" :label="__('Featured image')" />
+        <flux:error for="featuredImage" />
+
+        @if ($featuredImage)
+            <img src="{{ $featuredImage->temporaryUrl() }}" alt="{{ __('Featured image preview') }}"
+                class="h-24 w-40 rounded object-cover" />
+        @elseif ($currentFeaturedImagePath)
+            <img src="{{ Storage::disk('public')->url($currentFeaturedImagePath) }}"
+                alt="{{ __('Current featured image') }}" class="h-24 w-40 rounded object-cover" />
+        @endif
+
+        @if ($editingId && $currentFeaturedImagePath)
+            <flux:checkbox wire:model.live="removeFeaturedImage" :label="__('Delete current image')" />
+        @endif
+
+        <flux:field>
+            <flux:label>{{ __('Content') }}</flux:label>
+            <div wire:ignore class="rich-editor rich-editor--compact">
+                <div id="post-content-editor"></div>
+            </div>
+            <textarea wire:model.live="content" class="hidden"></textarea>
+            <flux:error for="content" />
+        </flux:field>
 
         {{-- Publishing --}}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -178,4 +207,145 @@
 
     </form>
 </flux:modal>
+
+@once
+    <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+    <style>
+        .rich-editor {
+            overflow: hidden;
+            border: 1px solid #d4d4d8;
+            border-radius: 0.75rem;
+            background: #ffffff;
+            transition: border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .dark .rich-editor {
+            border-color: #3f3f46;
+            background: #18181b;
+        }
+
+        .rich-editor:focus-within {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .rich-editor .ql-toolbar.ql-snow {
+            border: 0;
+            border-bottom: 1px solid #e4e4e7;
+            background: #fafafa;
+            padding: 0.625rem 0.75rem;
+        }
+
+        .dark .rich-editor .ql-toolbar.ql-snow {
+            border-bottom-color: #3f3f46;
+            background: #27272a;
+        }
+
+        .rich-editor .ql-container.ql-snow {
+            border: 0;
+            font-size: 0.95rem;
+        }
+
+        .rich-editor .ql-editor {
+            min-height: 22rem;
+            padding: 0.9rem 1rem;
+            line-height: 1.65;
+        }
+
+        .rich-editor--compact .ql-editor {
+            min-height: 18rem;
+        }
+
+        .rich-editor .ql-editor.ql-blank::before {
+            color: #a1a1aa;
+            font-style: normal;
+            left: 1rem;
+            right: 1rem;
+        }
+
+        .dark .rich-editor .ql-editor.ql-blank::before {
+            color: #71717a;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+@endonce
+
+@script
+    <script>
+        let postEditor;
+        let pendingPostContent = null;
+        let isSettingPostContent = false;
+
+        const initPostEditor = async () => {
+            if (postEditor || typeof Quill === 'undefined') {
+                return;
+            }
+
+            const element = document.getElementById('post-content-editor');
+            if (!element) {
+                return;
+            }
+
+            postEditor = new Quill(element, {
+                theme: 'snow',
+                placeholder: 'Write your content...',
+                modules: {
+                    toolbar: [
+                        [{
+                            header: [1, 2, 3, false]
+                        }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{
+                            list: 'ordered'
+                        }, {
+                            list: 'bullet'
+                        }],
+                        ['link', 'blockquote', 'code-block'],
+                        ['clean'],
+                    ],
+                },
+            });
+
+            const initialContent = pendingPostContent !== null ? pendingPostContent : @js($content);
+            setPostEditorContent(initialContent);
+            pendingPostContent = null;
+
+            postEditor.on('text-change', () => {
+                if (isSettingPostContent) {
+                    return;
+                }
+
+                $wire.set('content', postEditor.root.innerHTML, true);
+            });
+        };
+
+        const setPostEditorContent = (content = '') => {
+            if (postEditor) {
+                isSettingPostContent = true;
+                postEditor.clipboard.dangerouslyPasteHTML(content || '');
+                $wire.set('content', postEditor.root.innerHTML, true);
+                isSettingPostContent = false;
+            }
+        };
+
+        document.addEventListener('livewire:initialized', () => {
+            setTimeout(initPostEditor, 0);
+        });
+
+        setTimeout(initPostEditor, 0);
+
+        window.addEventListener('quill:set-content', (event) => {
+            if (event.detail?.instance !== 'post-content-editor') {
+                return;
+            }
+
+            const content = event.detail?.content ?? '';
+            if (postEditor) {
+                setPostEditorContent(content);
+            } else {
+                pendingPostContent = content;
+            }
+        });
+    </script>
+@endscript
 </div>

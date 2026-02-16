@@ -8,6 +8,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 use Spatie\Permission\Models\Permission;
 
 #[Layout('layouts.app')]
@@ -15,6 +16,7 @@ use Spatie\Permission\Models\Permission;
 class Index extends Component
 {
     use WithPagination;
+    use WithoutUrlPagination;
 
     public string $search = '';
 

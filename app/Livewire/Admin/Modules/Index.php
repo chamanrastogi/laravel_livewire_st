@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Livewire\Admin\Tags;
+namespace App\Livewire\Admin\Modules;
 
-use App\Models\Tag;
+use App\Models\Module;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
@@ -14,7 +14,7 @@ use Livewire\WithPagination;
 use Livewire\WithoutUrlPagination;
 
 #[Layout('layouts.app')]
-#[Title('Tags')]
+#[Title('Modules')]
 class Index extends Component
 {
     use WithPagination;
@@ -36,6 +36,10 @@ class Index extends Component
 
     public string $slug = '';
 
+    public string $description = '';
+
+    public bool $isActive = true;
+
     public bool $showModal = false;
 
     protected function rules(): array
@@ -43,14 +47,16 @@ class Index extends Component
         $id = $this->editingId;
 
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', 'unique:tags,slug,'.($id ?? 'NULL')],
+            'name' => ['required', 'string', 'max:100'],
+            'slug' => ['required', 'string', 'max:255', 'unique:modules,slug,'.($id ?? 'NULL')],
+            'description' => ['nullable', 'string'],
+            'isActive' => ['boolean'],
         ];
     }
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->can('read tags'), 403);
+        abort_unless(auth()->user()?->can('read modules'), 403);
     }
 
     public function updatedName($value): void
@@ -82,64 +88,67 @@ class Index extends Component
 
     public function create(): void
     {
-        abort_unless(auth()->user()?->can('create tags'), 403);
+        abort_unless(auth()->user()?->can('create modules'), 403);
         $this->resetForm();
         $this->showModal = true;
     }
 
     public function edit(int $id): void
     {
-        abort_unless(auth()->user()?->can('update tags'), 403);
-        $tag = Tag::findOrFail($id);
-        $this->editingId = $tag->id;
-        $this->name = $tag->name;
-        $this->slug = $tag->slug;
+        abort_unless(auth()->user()?->can('update modules'), 403);
+        $module = Module::findOrFail($id);
+        $this->editingId = $module->id;
+        $this->name = $module->name;
+        $this->slug = $module->slug;
+        $this->description = $module->description ?? '';
+        $this->isActive = (bool) $module->is_active;
         $this->showModal = true;
     }
 
     public function save(): void
     {
-        abort_unless(
-            auth()->user()?->can($this->editingId ? 'update tags' : 'create tags'),
-            403,
-        );
-        $this->validate();
+        abort_unless(auth()->user()?->can($this->editingId ? 'update modules' : 'create modules'), 403);
+        $validated = $this->validate();
+
+        $data = [
+            'name' => $validated['name'],
+            'slug' => $validated['slug'],
+            'description' => $validated['description'] ?: null,
+            'is_active' => $validated['isActive'],
+        ];
+
         if ($this->editingId) {
-            Tag::findOrFail($this->editingId)->update([
-                'name' => $this->name,
-                'slug' => $this->slug,
-            ]);
-            session()->flash('status', __('Tag updated successfully.'));
+            Module::findOrFail($this->editingId)->update($data);
+            session()->flash('status', __('Module updated successfully.'));
         } else {
-            Tag::create([
-                'name' => $this->name,
-                'slug' => $this->slug,
-            ]);
-            session()->flash('status', __('Tag created successfully.'));
+            Module::create($data);
+            session()->flash('status', __('Module created successfully.'));
         }
-        Cache::forget('admin.tags.list');
+
+        Cache::forget('admin.modules.list');
         $this->showModal = false;
         $this->resetForm();
     }
 
     public function delete(int $id): void
     {
-        abort_unless(auth()->user()?->can('delete tags'), 403);
-        Tag::findOrFail($id)->delete();
-        Cache::forget('admin.tags.list');
-        session()->flash('status', __('Tag deleted successfully.'));
+        abort_unless(auth()->user()?->can('delete modules'), 403);
+        Module::findOrFail($id)->delete();
+        Cache::forget('admin.modules.list');
+        session()->flash('status', __('Module deleted successfully.'));
     }
 
     public function resetForm(): void
     {
         $this->editingId = null;
-        $this->name = $this->slug = '';
+        $this->name = $this->slug = $this->description = '';
+        $this->isActive = true;
     }
 
     public function render(): View
     {
-        $tags = Tag::query()
-            ->select(['id', 'name', 'slug', 'created_at'])
+        $modules = Module::query()
+            ->select(['id', 'name', 'slug', 'is_active', 'created_at'])
             ->when($this->search, function (Builder $q): void {
                 $q->where('name', 'like', '%'.$this->search.'%')
                     ->orWhere('slug', 'like', '%'.$this->search.'%');
@@ -147,8 +156,8 @@ class Index extends Component
             ->orderBy($this->sortField, $this->sortDirection)
             ->paginate($this->perPage);
 
-        return view('livewire.admin.tags.index', [
-            'tags' => $tags,
+        return view('livewire.admin.modules.index', [
+            'modules' => $modules,
             'perPageOptions' => $this->perPageOptions,
         ]);
     }

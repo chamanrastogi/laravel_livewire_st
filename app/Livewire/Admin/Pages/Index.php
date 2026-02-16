@@ -5,17 +5,22 @@ namespace App\Livewire\Admin\Pages;
 use App\Models\Page;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 #[Layout('layouts.app')]
 #[Title('Pages')]
 class Index extends Component
 {
+    use WithFileUploads;
     use WithPagination;
+    use WithoutUrlPagination;
 
     public string $search = '';
 
@@ -34,6 +39,12 @@ class Index extends Component
     public string $slug = '';
 
     public string $content = '';
+
+    public $featuredImage = null;
+
+    public bool $removeFeaturedImage = false;
+
+    public ?string $currentFeaturedImagePath = null;
 
     public string $status = 'draft';
 
@@ -55,6 +66,7 @@ class Index extends Component
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', 'unique:pages,slug,'.($id ?? 'NULL')],
             'content' => ['nullable', 'string'],
+            'featuredImage' => ['nullable', 'image', 'max:2048'],
             'status' => ['required', 'in:draft,published'],
             'publishedAt' => ['nullable', 'date'],
             'metaTitle' => ['nullable', 'string', 'max:255'],
@@ -100,6 +112,7 @@ class Index extends Component
         abort_unless(auth()->user()?->can('create pages'), 403);
         $this->resetForm();
         $this->showModal = true;
+        $this->dispatch('quill:set-content', instance: 'page-content-editor', content: '');
     }
 
     public function edit(int $id): void
@@ -110,12 +123,16 @@ class Index extends Component
         $this->title = $page->title;
         $this->slug = $page->slug;
         $this->content = $page->content ?? '';
+        $this->featuredImage = null;
+        $this->removeFeaturedImage = false;
+        $this->currentFeaturedImagePath = $page->featured_image_path;
         $this->status = $page->status;
         $this->publishedAt = $page->published_at?->format('Y-m-d\TH:i');
         $this->metaTitle = $page->meta_title ?? '';
         $this->metaDescription = $page->meta_description ?? '';
         $this->metaKeywords = $page->meta_keywords ?? '';
         $this->showModal = true;
+        $this->dispatch('quill:set-content', instance: 'page-content-editor', content: $this->content);
     }
 
     public function save(): void
@@ -125,10 +142,30 @@ class Index extends Component
             403,
         );
         $validated = $this->validate();
+        $featuredImagePath = null;
+
+        if ($this->editingId) {
+            $existing = Page::findOrFail($this->editingId);
+            $featuredImagePath = $existing->featured_image_path;
+
+            if ($this->removeFeaturedImage && $featuredImagePath) {
+                Storage::disk('public')->delete($featuredImagePath);
+                $featuredImagePath = null;
+            }
+        }
+
+        if ($this->featuredImage) {
+            if ($featuredImagePath) {
+                Storage::disk('public')->delete($featuredImagePath);
+            }
+            $featuredImagePath = $this->featuredImage->store('pages/'.date('Y/m'), 'public');
+        }
+
         $data = [
             'title' => $validated['title'],
             'slug' => $validated['slug'],
             'content' => $validated['content'],
+            'featured_image_path' => $featuredImagePath,
             'status' => $validated['status'],
             'published_at' => $validated['publishedAt'] ? $validated['publishedAt'] : null,
             'meta_title' => $validated['metaTitle'] ?: null,
@@ -140,10 +177,12 @@ class Index extends Component
             $data['created_by'] = auth()->id();
         }
         if ($this->editingId) {
-            Page::findOrFail($this->editingId)->update($data);
+            $existing->update($data);
+            $this->currentFeaturedImagePath = $featuredImagePath;
             session()->flash('status', __('Page updated successfully.'));
         } else {
             Page::create($data);
+            $this->currentFeaturedImagePath = $featuredImagePath;
             session()->flash('status', __('Page created successfully.'));
         }
         $this->showModal = false;
@@ -153,7 +192,11 @@ class Index extends Component
     public function delete(int $id): void
     {
         abort_unless(auth()->user()?->can('delete pages'), 403);
-        Page::findOrFail($id)->delete();
+        $page = Page::findOrFail($id);
+        if ($page->featured_image_path) {
+            Storage::disk('public')->delete($page->featured_image_path);
+        }
+        $page->delete();
         session()->flash('status', __('Page deleted successfully.'));
     }
 
@@ -174,6 +217,9 @@ class Index extends Component
     {
         $this->editingId = null;
         $this->title = $this->slug = $this->content = $this->metaTitle = $this->metaDescription = $this->metaKeywords = '';
+        $this->featuredImage = null;
+        $this->removeFeaturedImage = false;
+        $this->currentFeaturedImagePath = null;
         $this->status = 'draft';
         $this->publishedAt = null;
     }
@@ -181,7 +227,7 @@ class Index extends Component
     public function render(): View
     {
         $pages = Page::query()
-            ->select(['id', 'title', 'slug', 'status', 'published_at', 'updated_at'])
+            ->select(['id', 'title', 'slug', 'featured_image_path', 'status', 'published_at', 'updated_at'])
             ->when($this->search, function (Builder $q): void {
                 $q->where(function (Builder $inner): void {
                     $inner->where('title', 'like', '%'.$this->search.'%')

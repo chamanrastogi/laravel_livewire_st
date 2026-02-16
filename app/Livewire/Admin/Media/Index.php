@@ -11,6 +11,7 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 #[Layout('layouts.app')]
 #[Title('Media')]
@@ -18,6 +19,7 @@ class Index extends Component
 {
     use WithPagination;
     use WithFileUploads;
+    use WithoutUrlPagination;
 
     public string $search = '';
 

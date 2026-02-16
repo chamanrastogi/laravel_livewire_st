@@ -19,6 +19,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'categories',
             'tags',
             'media',
+            'modules',
+            'menu groups',
+            'menus',
             'settings',
         ];
 
@@ -74,7 +77,10 @@ class RolesAndPermissionsSeeder extends Seeder
                     || str_contains($permission->name, 'posts')
                     || str_contains($permission->name, 'categories')
                     || str_contains($permission->name, 'tags')
-                    || str_contains($permission->name, 'media');
+                    || str_contains($permission->name, 'media')
+                    || str_contains($permission->name, 'menus')
+                    || str_contains($permission->name, 'menu groups')
+                    || str_contains($permission->name, 'modules');
             }),
         );
 
