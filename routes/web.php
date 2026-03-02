@@ -1,9 +1,14 @@
 <?php
 
+use Illuminate\Support\Benchmark;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    // Benchmark::dd(function () {
+    //     return view('welcome');
+    // });
     return view('welcome');
+//"0.443ms"
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
