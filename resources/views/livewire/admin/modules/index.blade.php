@@ -26,6 +26,11 @@
 
         <x-slot:head>
             <tr>
+                 <th class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
+                    <button type="button" wire:click="sortBy('id')" class="inline-flex items-center gap-1">
+                        {{ __('Id') }}
+                    </button>
+                </th>
                 <th class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
                     <button type="button" wire:click="sortBy('name')" class="inline-flex items-center gap-1">
                         {{ __('Name') }}
@@ -40,6 +45,7 @@
         <x-slot:rows>
             @forelse ($modules as $module)
                 <tr wire:key="module-{{ $module->id }}">
+                     <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">{{ $module->id }}</td>
                     <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">{{ $module->name }}</td>
                     <td class="px-4 py-2 text-neutral-600 dark:text-neutral-400">{{ $module->slug }}</td>
                     <td class="px-4 py-2">

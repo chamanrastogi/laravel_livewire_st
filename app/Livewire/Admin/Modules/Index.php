@@ -22,7 +22,7 @@ class Index extends Component
 
     public string $search = '';
 
-    public string $sortField = 'name';
+    public string $sortField = 'id';
 
     public string $sortDirection = 'asc';
 

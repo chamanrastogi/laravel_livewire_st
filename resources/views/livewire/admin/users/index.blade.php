@@ -3,11 +3,9 @@
         <flux:callout variant="success">{{ session('status') }}</flux:callout>
     @endif
 
-    <x-data-table
-        columns="5"
+    <x-data-table columns="5"
         loading-target="search,sortBy,perPage,nextPage,previousPage,gotoPage,setPage,toggleStatus,deleteConfirmed"
-        :empty="__('No users found.')"
-    >
+        :empty="__('No users found.')">
         <x-slot:toolbar>
             <div class="flex flex-1 min-w-[200px] items-center gap-3">
                 <flux:input icon="magnifying-glass" wire:model.live.debounce.500ms="search"
@@ -29,6 +27,12 @@
 
         <x-slot:head>
             <tr>
+                <th scope="col" class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
+                    <button type="button" wire:click="sortBy('id')" class="inline-flex items-center gap-1">
+                        {{ __('Id') }}
+
+                    </button>
+                </th>
                 <th scope="col" class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
                     <button type="button" wire:click="sortBy('name')" class="inline-flex items-center gap-1">
                         {{ __('Name') }}
@@ -70,9 +74,17 @@
                 <tr wire:key="user-{{ $user->id }}">
                     <td class="px-4 py-2 align-middle">
                         <div class="flex items-center gap-2">
+
+                            {{ $user->id }}
+
+                        </div>
+                    </td>
+                    <td class="px-4 py-2 align-middle">
+
+                        <div class="flex items-center gap-2">
                             @if ($user->avatar_path)
-                                <img src="{{ Storage::disk('public')->url($user->avatar_path) }}" alt="{{ $user->name }}"
-                                    class="size-9 rounded-full object-cover" />
+                                <img src="{{ Storage::disk('public')->url($user->avatar_path) }}"
+                                    alt="{{ $user->name }}" class="size-9 rounded-full object-cover" />
                             @else
                                 <flux:avatar :name="$user->name" :initials="$user->initials()" />
                             @endif
@@ -87,7 +99,8 @@
                         @if ($user->roles->isNotEmpty())
                             <div class="flex flex-wrap items-center gap-2">
                                 @foreach ($user->roles as $role)
-                                    <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium"
+                                    <span
+                                        class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium"
                                         style="background-color: {{ $role->color ?: '#6B7280' }}1f; border-color: {{ $role->color ?: '#6B7280' }}66; color: {{ $role->color ?: '#6B7280' }};">
                                         {{ $role->name }}
                                     </span>

@@ -23,6 +23,11 @@
 
             <x-slot:head>
                 <tr>
+                     <th scope="col" class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
+                        <button type="button" wire:click="sortBy('id')" class="inline-flex items-center gap-1">
+                            {{ __('Id') }}
+                        </button>
+                    </th>
                     <th scope="col" class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
                         <button type="button" wire:click="sortBy('title')" class="inline-flex items-center gap-1">
                             {{ __('Title') }}
@@ -46,6 +51,8 @@
             <x-slot:rows>
                 @forelse ($posts as $post)
                     <tr wire:key="post-{{ $post->id }}">
+                         <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">{{ $post->id }}</td>
+
                         <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">{{ $post->title }}</td>
                         <td class="px-4 py-2">
                             @if ($post->featured_image_path)

@@ -29,6 +29,11 @@
         <x-slot:head>
             <tr>
                 <th class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
+                    <button type="button" wire:click="sortBy('id')" class="inline-flex items-center gap-1">
+                        {{ __('Id') }}
+                    </button>
+                </th>
+                <th class="px-4 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">
                     <button type="button" wire:click="sortBy('name')" class="inline-flex items-center gap-1">
                         {{ __('Name') }}
                     </button>
@@ -51,6 +56,9 @@
         <x-slot:rows>
             @forelse ($categories as $category)
                 <tr wire:key="cat-{{ $category->id }}">
+                     <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">
+                        {{ $category->id }}
+                    </td>
                     <td class="px-4 py-2 font-medium text-neutral-900 dark:text-neutral-50">
                         {{ $category->name }}
                     </td>
